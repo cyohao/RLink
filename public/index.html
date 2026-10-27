@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>瑞联 R-Link</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">瑞联</div>
+    <nav class="tabs">
+      <button class="tab active" data-view="mocks">接口</button>
+      <button class="tab" data-view="client">接口调用</button>
+      <button class="tab" data-view="logs">请求日志</button>
+      <button class="tab" data-view="help">使用说明</button>
+    </nav>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="btn-export">导出配置</button>
+      <button class="btn ghost" id="btn-import">导入配置</button>
+      <input type="file" id="import-file" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <main>
+    <section class="view" id="view-mocks">
+      <aside class="sidebar">
+        <div class="sidebar-head">
+          <input type="search" id="mock-search" placeholder="搜索名称或路径">
+          <button class="btn primary" id="btn-new">新建</button>
+        </div>
+        <div class="mock-list" id="mock-list"></div>
+      </aside>
+      <div class="editor" id="editor"></div>
+    </section>
+
+    <section class="view" id="view-client" hidden>
+      <aside class="sidebar" id="client-side"></aside>
+      <div class="editor" id="client-main"><div class="placeholder">加载中…</div></div>
+    </section>
+
+    <section class="view" id="view-logs" hidden>
+      <div class="logs-toolbar">
+        <select id="log-filter"></select>
+        <label class="check"><input type="checkbox" id="log-auto" checked> 每 3 秒自动刷新</label>
+        <button class="btn ghost" id="btn-log-refresh">刷新</button>
+        <button class="btn ghost danger" id="btn-log-clear">清空</button>
+        <span class="muted">只保留最近 300 条，服务重启后清空</span>
+      </div>
+      <div class="logs-layout">
+        <div class="logs-table-wrap">
+          <table class="logs-table">
+            <thead>
+              <tr><th>时间</th><th>方法</th><th>地址</th><th>命中接口</th><th>处理结果</th><th>状态码</th><th>耗时</th></tr>
+            </thead>
+            <tbody id="log-rows"></tbody>
+          </table>
+        </div>
+        <div class="log-detail" id="log-detail"></div>
+      </div>
+    </section>
+
+    <section class="view help" id="view-help" hidden>
+      <h2>它是怎么工作的</h2>
+      <p>每个接口由「方法 + 路径」确定。收到请求后按下面的顺序处理，<b>保存后立即生效，不需要重启</b>：</p>
+      <ol>
+        <li><b>条件场景</b>：从上到下检查，命中第一个就返回这个场景的内容。没有条件的场景只要启用，就会拦截所有请求，可以用来「强制返回某个错误」。</li>
+        <li><b>参数校验</b>：任意一条规则不通过，就返回「校验失败时返回」的内容，用 <code>{{error}}</code> 可以取到错误说明。</li>
+        <li><b>默认返回</b>。</li>
+      </ol>
+      <p>路径写法：<code>/api/box/:code</code> 中的 <code>:code</code> 是路径参数，用 <code>{{params.code}}</code> 读取；<code>/files/*</code> 匹配后面任意多层路径。多个接口都能匹配同一个请求时，路径写得越具体的越优先。</p>
+
+      <h2>返回值模板</h2>
+      <p>返回值是合法的 JSON 时，系统会把其中的 <code>{{...}}</code> 替换成实际的值，结果以 JSON 返回；不是 JSON 时按纯文本返回。</p>
+      <table class="help-table">
+        <thead><tr><th>写法</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><code>{{body.taskNo}}</code></td><td>请求体里的字段，支持多层和下标：<code>{{body.list[0].code}}</code></td></tr>
+          <tr><td><code>{{query.page}}</code></td><td>URL 上的查询参数</td></tr>
+          <tr><td><code>{{params.code}}</code></td><td>路径参数</td></tr>
+          <tr><td><code>{{headers.x-auth-token}}</code></td><td>请求头，名称一律用小写</td></tr>
+          <tr><td><code>"{{body.quantity}}"</code></td><td>整个字符串只有一个表达式时，<b>保留原始类型</b>，比如数字仍然是数字</td></tr>
+        </tbody>
+      </table>
+
+      <h3>内置函数</h3>
+      <p>写法是「函数名 参数1 参数2」，字符串参数用单引号，嵌套调用时用括号括起来：<code>{{concat 'WMS' (pad (seq 'out') 6)}}</code></p>
+      <table class="help-table">
+        <thead><tr><th>函数</th><th>说明</th><th>示例 → 结果</th></tr></thead>
+        <tbody>
+          <tr><td><code>now</code></td><td>当前时间，可指定格式（YYYY MM DD HH mm ss SSS）</td><td><code>{{now 'YYYYMMDD'}}</code> → 20261026</td></tr>
+          <tr><td><code>timestamp</code></td><td>毫秒时间戳</td><td><code>{{timestamp}}</code></td></tr>
+          <tr><td><code>uuid</code></td><td>随机 UUID</td><td><code>{{uuid}}</code></td></tr>
+          <tr><td><code>seq</code></td><td>按名称自增的序号，可指定起始值，服务重启后重新计数</td><td><code>{{seq 'box' 1}}</code> → 1、2、3…</td></tr>
+          <tr><td><code>randomInt</code></td><td>随机整数</td><td><code>{{randomInt 1 100}}</code></td></tr>
+          <tr><td><code>randomStr</code></td><td>随机字符串，字符集可选 digit / upper / lower / hex / alnum</td><td><code>{{randomStr 6 'digit'}}</code> → 482913</td></tr>
+          <tr><td><code>pick</code></td><td>从几个值里随机挑一个</td><td><code>{{pick 'A' 'B' 'C'}}</code></td></tr>
+          <tr><td><code>pad</code></td><td>左侧补齐</td><td><code>{{pad 7 4}}</code> → 0007</td></tr>
+          <tr><td><code>concat</code></td><td>拼接</td><td><code>{{concat 'B' body.no}}</code></td></tr>
+          <tr><td><code>add sub mul div</code></td><td>加减乘除</td><td><code>{{div body.quantity 2}}</code></td></tr>
+          <tr><td><code>ceil floor round min max</code></td><td>取整和比较大小</td><td><code>{{ceil (div 5 2)}}</code> → 3</td></tr>
+          <tr><td><code>default</code></td><td>值为空时使用默认值</td><td><code>{{default query.size 20}}</code></td></tr>
+          <tr><td><code>if eq gt lt</code></td><td>条件判断</td><td><code>{{if (eq body.type 'A') '甲' '乙'}}</code></td></tr>
+          <tr><td><code>len upper lower number string</code></td><td>长度、大小写、类型转换</td><td><code>{{len body.list}}</code></td></tr>
+        </tbody>
+      </table>
+
+      <h3>生成列表：$repeat</h3>
+      <p>在需要数组的位置写一个对象，<code>$repeat</code> 是次数（可以是表达式），<code>$item</code> 是每一项的模板。在 <code>$item</code> 里，<code>{{$index}}</code> 是从 0 开始的下标，<code>{{$no}}</code> 是从 1 开始的序号。</p>
+<pre>{
+  "code": "0",
+  "data": {
+    "total": "{{body.quantity}}",
+    "boxes": {
+      "$repeat": "{{body.quantity}}",
+      "$item": {
+        "no": "{{$no}}",
+        "boxCode": "{{concat 'B' (pad (seq 'box') 6)}}"
+      }
+    }
+  }
+}</pre>
+
+      <h2>参数校验</h2>
+      <p>位置可选 Body、Query、路径参数、Header。字段支持多层路径，比如 <code>order.items</code>。Query、Header 和表单提交的值都是字符串，所以类型校验会把 <code>"10"</code> 当作数字；JSON 请求体则按实际类型严格校验。</p>
+
+      <h2>接口调用</h2>
+      <p>「接口调用」页可以像 Postman 一样调用任意 HTTP 接口。请求是<b>由这台服务器发出的</b>，所以没有浏览器跨域限制，也能访问服务器所在内网的地址。这个功能需要设置管理口令 <code>ADMIN_TOKEN</code> 后才能使用。</p>
+      <ul>
+        <li><b>地址</b>：以 <code>/</code> 开头的地址（例如 <code>/wms/api/task/out</code>）会调用本服务自己的模拟接口；没写 <code>http://</code> 时会自动补上。</li>
+        <li><b>环境变量</b>：在左上角「管理」里配置，例如 <code>baseUrl</code>、<code>token</code>，在地址、Params、Headers、请求体里用 <code>{{baseUrl}}</code> 引用。上面的内置函数也能用，例如 <code>{{uuid}}</code>、<code>{{now 'YYYYMMDD'}}</code>。</li>
+        <li><b>替换方式</b>：按文本替换，<code>"qty": {{qty}}</code> 替换后是数字，<code>"t": "{{timestamp}}"</code> 仍然是字符串。用到了未定义的变量时不会发送。</li>
+        <li><b>集合</b>：把常用的请求保存到集合里，所有人共用。</li>
+        <li><b>历史</b>：每次发送都会记在当前浏览器里（最多 100 条），换浏览器就看不到了。点击 ☁ 可以把某一次调用保存到服务器，所有人都能在「服务器记录」里看到，适合留作联调凭证。</li>
+        <li><b>快捷键</b>：<code>Ctrl + Enter</code> 发送，<code>Ctrl + S</code> 保存。</li>
+        <li><b>实际请求</b>：响应区的「实际请求」里能看到变量替换之后真正发出去的内容。</li>
+      </ul>
+      <p>导出配置时会带上集合和请求，但<b>不包含环境变量</b>（里面可能有 token），迁移到新服务器后需要重新配置环境。</p>
+
+      <h2>在服务器上使用</h2>
+      <p>你的平台把接口地址指向 <code>http://服务器IP:端口/你配置的路径</code> 即可。每次调用都会记到「请求日志」里，联调时可以直接看对方实际传了什么。</p>
+    </section>
+  </main>
+
+  <dialog id="import-dialog">
+    <form method="dialog">
+      <h3>导入配置</h3>
+      <p id="import-summary"></p>
+      <p class="muted">合并：同名接口（相同的方法和路径）会被覆盖，其余接口保留。<br>覆盖：先清空现有的全部接口，再导入。<br>文件里有接口调用的集合和请求时也按同样的方式处理；文件里没有时不会改动。环境变量不受影响。</p>
+      <div class="dialog-actions">
+        <button value="cancel" class="btn ghost">取消</button>
+        <button value="replace" class="btn ghost danger">覆盖导入</button>
+        <button value="merge" class="btn primary">合并导入</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toasts" id="toasts"></div>
+  <script src="app.js"></script>
+  <script src="client.js"></script>
+  <script src="desktop.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+services:
+  mock-api:
+    build: .
+    image: mock-api-server:1.0.0
+    container_name: mock-api-server
+    restart: unless-stopped
+    ports:
+      - "${MOCK_PORT:-3000}:3000"
+    environment:
+      # 管理页面口令，留空表示不需要口令。建议在同目录的 .env 文件里设置 ADMIN_TOKEN=xxx
+      - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      # 「接口调用」允许访问的地址，逗号分隔，留空表示不限制；CLIENT_ENABLED=false 关闭这个功能
+      - PROXY_ALLOW_HOSTS=${PROXY_ALLOW_HOSTS:-}
+      - CLIENT_ENABLED=${CLIENT_ENABLED:-true}
+    volumes:
+      - mock-data:/app/data
+
+volumes:
+  mock-data:

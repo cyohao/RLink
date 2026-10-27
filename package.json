@@ -1,0 +1,17 @@
+{
+  "name": "mock-api-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "可在网页上自定义路由、参数校验和返回值的接口模拟服务",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

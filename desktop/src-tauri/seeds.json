@@ -1,0 +1,368 @@
+[
+  {
+    "name": "I-01 烟箱特征码规则同步",
+    "description": "全量返回特征码字典",
+    "method": "POST",
+    "path": "/wms/api/feature-codes",
+    "scenarios": [
+      {
+        "name": "鉴权失败（Token 不是 mock-token）",
+        "enabled": false,
+        "match": "all",
+        "conditions": [
+          {
+            "field": "headers.x-auth-token",
+            "op": "ne",
+            "value": "mock-token"
+          }
+        ],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"1001\",\n  \"msg\": \"鉴权失败\",\n  \"data\": null\n}"
+        }
+      }
+    ],
+    "response": {
+      "status": 200,
+      "body": "{\n  \"code\": \"0\",\n  \"msg\": \"success\",\n  \"data\": {\n    \"featureCodes\": [\n      {\n        \"featureCode\": \"102000\",\n        \"name\": \"木质烟箱使用次数1-10\",\n        \"description\": \"木质烟箱使用次数1-10\",\n        \"status\": \"ENABLED\"\n      },\n      {\n        \"featureCode\": \"102001\",\n        \"name\": \"木质烟箱使用次数11-20\",\n        \"description\": \"木质烟箱使用次数11-20\",\n        \"status\": \"ENABLED\"\n      },\n      {\n        \"featureCode\": \"103000\",\n        \"name\": \"木质烟箱使用次数21以上\",\n        \"description\": \"木质烟箱使用次数21以上\",\n        \"status\": \"DISABLED\"\n      }\n    ]\n  }\n}"
+    }
+  },
+  {
+    "name": "I-02 可出库空箱库存查询",
+    "description": "随机生成 30 个货位的空箱库存，批次号有空值和几个历史批次，用来测试轮换选箱",
+    "method": "POST",
+    "path": "/wms/api/inventory/empty-boxes",
+    "scenarios": [
+      {
+        "name": "鉴权失败（Token 不是 mock-token）",
+        "enabled": false,
+        "match": "all",
+        "conditions": [
+          {
+            "field": "headers.x-auth-token",
+            "op": "ne",
+            "value": "mock-token"
+          }
+        ],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"1001\",\n  \"msg\": \"鉴权失败\",\n  \"data\": null\n}"
+        }
+      }
+    ],
+    "response": {
+      "status": 200,
+      "body": "{\n  \"code\": \"0\",\n  \"msg\": \"success\",\n  \"data\": {\n    \"locations\": {\n      \"$repeat\": 30,\n      \"$item\": {\n        \"featureCode\": \"{{pick '102000' '102001'}}\",\n        \"locationCode\": \"{{concat '01' (pad (randomInt 1 20) 2) (pad (randomInt 1 40) 3)}}\",\n        \"itemCode\": \"20\",\n        \"oldestInTime\": \"{{now}}\",\n        \"batchNo\": \"{{pick '' '' 'SC202610-01' 'SC202612-01'}}\",\n        \"quantity\": 2\n      }\n    }\n  }\n}"
+    }
+  },
+  {
+    "name": "I-03 空烟箱出库任务申请",
+    "description": "按申请数量生成垛明细（2 箱/垛，奇数时最后一垛为单箱）。数量超过 200 时返回 3001 库存不足",
+    "method": "POST",
+    "path": "/wms/api/task/out",
+    "rules": [
+      {
+        "in": "body",
+        "name": "taskNo",
+        "type": "string",
+        "required": true,
+        "maxLength": 32
+      },
+      {
+        "in": "body",
+        "name": "batchNo",
+        "type": "string",
+        "required": true,
+        "maxLength": 32
+      },
+      {
+        "in": "body",
+        "name": "featureCode",
+        "type": "string",
+        "required": true,
+        "maxLength": 32
+      },
+      {
+        "in": "body",
+        "name": "quantity",
+        "type": "integer",
+        "required": true
+      },
+      {
+        "in": "body",
+        "name": "stationCode",
+        "type": "string",
+        "required": true,
+        "maxLength": 16
+      }
+    ],
+    "validationResponse": {
+      "status": 200,
+      "headers": {},
+      "body": "{\n  \"code\": \"1002\",\n  \"msg\": \"{{error}}\",\n  \"data\": null\n}"
+    },
+    "scenarios": [
+      {
+        "name": "鉴权失败（Token 不是 mock-token）",
+        "enabled": false,
+        "match": "all",
+        "conditions": [
+          {
+            "field": "headers.x-auth-token",
+            "op": "ne",
+            "value": "mock-token"
+          }
+        ],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"1001\",\n  \"msg\": \"鉴权失败\",\n  \"data\": null\n}"
+        }
+      },
+      {
+        "name": "可出库数量不足（申请数量 > 200）",
+        "match": "all",
+        "conditions": [
+          {
+            "field": "body.quantity",
+            "op": "gt",
+            "value": "200"
+          }
+        ],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"3001\",\n  \"msg\": \"可出库数量不足\",\n  \"data\": {\n    \"acceptedQty\": 200\n  }\n}"
+        }
+      },
+      {
+        "name": "强制返回系统内部错误",
+        "enabled": false,
+        "conditions": [],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"5001\",\n  \"msg\": \"系统内部错误\",\n  \"data\": null\n}"
+        }
+      }
+    ],
+    "response": {
+      "status": 200,
+      "body": "{\n  \"code\": \"0\",\n  \"msg\": \"success\",\n  \"data\": {\n    \"wmsTaskNo\": \"{{concat 'WMS' (now 'YYYYMMDD') (pad (seq 'out') 6)}}\",\n    \"acceptedQty\": \"{{body.quantity}}\",\n    \"stacks\": {\n      \"$repeat\": \"{{ceil (div body.quantity 2)}}\",\n      \"$item\": {\n        \"locationCode\": \"{{concat '01' (pad (randomInt 1 20) 2) (pad (randomInt 1 40) 3)}}\",\n        \"featureCode\": \"{{body.featureCode}}\",\n        \"upBoxCode\": \"{{if (gt (mul $no 2) body.quantity) '' (concat 'B' (pad (seq 'box') 6))}}\",\n        \"downBoxCode\": \"{{concat 'B' (pad (seq 'box') 6)}}\"\n      }\n    }\n  }\n}"
+    }
+  },
+  {
+    "name": "I-04 空烟箱回库任务申请",
+    "description": "taskType=KILL 时 featureCode 必填；可启用「无可用库位」场景模拟 3002",
+    "method": "POST",
+    "path": "/wms/api/task/back",
+    "rules": [
+      {
+        "in": "body",
+        "name": "taskNo",
+        "type": "string",
+        "required": true,
+        "maxLength": 32
+      },
+      {
+        "in": "body",
+        "name": "taskType",
+        "type": "string",
+        "required": true,
+        "enum": [
+          "KILL",
+          "CLEAN"
+        ]
+      },
+      {
+        "in": "body",
+        "name": "batchNo",
+        "type": "string",
+        "required": true,
+        "maxLength": 32
+      },
+      {
+        "in": "body",
+        "name": "featureCode",
+        "type": "string",
+        "required": false,
+        "maxLength": 32
+      },
+      {
+        "in": "body",
+        "name": "quantity",
+        "type": "integer",
+        "required": true
+      },
+      {
+        "in": "body",
+        "name": "stationCode",
+        "type": "string",
+        "required": true,
+        "maxLength": 16
+      },
+      {
+        "in": "body",
+        "name": "upBoxCode",
+        "type": "string",
+        "required": false,
+        "maxLength": 32
+      },
+      {
+        "in": "body",
+        "name": "downBoxCode",
+        "type": "string",
+        "required": true,
+        "maxLength": 32
+      }
+    ],
+    "validationResponse": {
+      "status": 200,
+      "headers": {},
+      "body": "{\n  \"code\": \"1002\",\n  \"msg\": \"{{error}}\",\n  \"data\": null\n}"
+    },
+    "scenarios": [
+      {
+        "name": "鉴权失败（Token 不是 mock-token）",
+        "enabled": false,
+        "match": "all",
+        "conditions": [
+          {
+            "field": "headers.x-auth-token",
+            "op": "ne",
+            "value": "mock-token"
+          }
+        ],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"1001\",\n  \"msg\": \"鉴权失败\",\n  \"data\": null\n}"
+        }
+      },
+      {
+        "name": "KILL 回库缺少特征码",
+        "match": "all",
+        "conditions": [
+          {
+            "field": "body.taskType",
+            "op": "eq",
+            "value": "KILL"
+          },
+          {
+            "field": "body.featureCode",
+            "op": "notExists",
+            "value": ""
+          }
+        ],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"1002\",\n  \"msg\": \"taskType 为 KILL 时 featureCode 必填\",\n  \"data\": null\n}"
+        }
+      },
+      {
+        "name": "强制返回无可用库位",
+        "enabled": false,
+        "conditions": [],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": \"3002\",\n  \"msg\": \"无可用库位\",\n  \"data\": null\n}"
+        }
+      }
+    ],
+    "response": {
+      "status": 200,
+      "body": "{\n  \"code\": \"0\",\n  \"msg\": \"success\",\n  \"data\": {\n    \"wmsTaskNo\": \"{{concat 'WMS' (now 'YYYYMMDD') (pad (seq 'back') 6)}}\",\n    \"acceptedQty\": \"{{body.quantity}}\"\n  }\n}"
+    }
+  },
+  {
+    "name": "TUSK 创建任务",
+    "description": "潜伏式 AGV 调度系统（TUSK）创建任务，WES → TUSK。targets 必填且至少一个点位",
+    "method": "POST",
+    "path": "/rpc/task/create",
+    "rules": [
+      {
+        "in": "body",
+        "name": "taskId",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "targets",
+        "type": "array",
+        "required": true
+      },
+      {
+        "in": "body",
+        "name": "configId",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "priority",
+        "type": "integer"
+      },
+      {
+        "in": "body",
+        "name": "containerId",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "containerTypeId",
+        "type": "integer"
+      },
+      {
+        "in": "body",
+        "name": "robotId",
+        "type": "string"
+      },
+      {
+        "in": "body",
+        "name": "robotGroup",
+        "type": "string"
+      }
+    ],
+    "validationResponse": {
+      "status": 200,
+      "headers": {},
+      "body": "{\n  \"code\": 400,\n  \"msg\": \"{{error}}\"\n}"
+    },
+    "scenarios": [
+      {
+        "name": "targets 为空",
+        "match": "all",
+        "conditions": [
+          {
+            "field": "body.targets.0",
+            "op": "notExists",
+            "value": ""
+          }
+        ],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": 400,\n  \"msg\": \"targets 不能为空\"\n}"
+        }
+      },
+      {
+        "name": "强制返回创建失败",
+        "enabled": false,
+        "conditions": [],
+        "response": {
+          "status": 200,
+          "headers": {},
+          "body": "{\n  \"code\": 400,\n  \"msg\": \"任务创建失败\"\n}"
+        }
+      }
+    ],
+    "response": {
+      "status": 200,
+      "headers": {},
+      "body": "{\n  \"code\": 200,\n  \"msg\": \"success\"\n}"
+    }
+  }
+]
